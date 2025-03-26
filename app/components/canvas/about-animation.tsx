@@ -1,6 +1,7 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import dynamic from 'next/dynamic'
+import { Suspense, useMemo, useState } from "react"
 import { useRef, useEffect } from "react"
 import * as THREE from "three"
 import { Canvas, useFrame } from "@react-three/fiber"
@@ -10,6 +11,22 @@ import { GlitchMode } from "postprocessing"
 import gsap from "gsap"
 import { ScrollTrigger } from "gsap/ScrollTrigger"
 import { useSoundContext } from "@/context/sound-context"
+
+// Dynamically import heavy components
+const DynamicEffectComposer = dynamic(() => import('@react-three/postprocessing').then(mod => mod.EffectComposer), {
+  ssr: false,
+  loading: () => null,
+})
+
+const DynamicBloom = dynamic(() => import('@react-three/postprocessing').then(mod => mod.Bloom), {
+  ssr: false,
+  loading: () => null,
+})
+
+const DynamicGlitch = dynamic(() => import('@react-three/postprocessing').then(mod => mod.Glitch), {
+  ssr: false,
+  loading: () => null,
+})
 
 if (typeof window !== "undefined") {
   gsap.registerPlugin(ScrollTrigger)
@@ -285,22 +302,26 @@ function Avatar() {
 
 export default function CanvasAboutAnimation() {
   return (
-    <Canvas className="h-full w-full">
+    <Canvas className="h-full w-full" dpr={[1, 2]}>
       <ambientLight intensity={0.2} />
       <spotLight position={[5, 5, 5]} intensity={0.5} />
-      <Avatar />
+      <Suspense fallback={null}>
+        <Avatar />
+      </Suspense>
       <Environment preset="night" />
-      <EffectComposer>
-        <Bloom luminanceThreshold={0.2} luminanceSmoothing={0.9} intensity={0.5} />
-        <Glitch
-          delay={new THREE.Vector2(1.5, 3.5)} // min and max delay between glitches
-          duration={new THREE.Vector2(0.1, 0.3)} // min and max glitch duration
-          strength={new THREE.Vector2(0.05, 0.1)} // min and max glitch strength
-          mode={GlitchMode.SPORADIC} // glitch mode
-          active // turn on/off the effect (switches between "mode" prop and GlitchMode.DISABLED)
-          ratio={0.85} // Threshold for strong glitches, 0 - no weak glitches, 1 - no strong glitches.
-        />
-      </EffectComposer>
+      <Suspense fallback={null}>
+        <DynamicEffectComposer>
+          <DynamicBloom luminanceThreshold={0.2} luminanceSmoothing={0.9} intensity={0.5} />
+          <DynamicGlitch
+            delay={new THREE.Vector2(1.5, 3.5)}
+            duration={new THREE.Vector2(0.1, 0.3)}
+            strength={new THREE.Vector2(0.05, 0.1)}
+            mode={GlitchMode.SPORADIC}
+            active
+            ratio={0.85}
+          />
+        </DynamicEffectComposer>
+      </Suspense>
     </Canvas>
   )
 }

@@ -14,11 +14,19 @@ const nextConfig = {
   },
   experimental: {
     optimizeCss: true,
-    turbo: process.env.NODE_ENV === 'production',
+    turbo: {
+      loaders: {
+        // Add loaders for better performance
+        '.svg': ['@svgr/webpack'],
+        '.glb': ['file-loader'],
+        '.gltf': ['file-loader'],
+      },
+    },
     optimizePackageImports: ['three', '@react-three/fiber', '@react-three/drei', 'framer-motion', 'gsap'],
   },
   images: {
     domains: ['images.unsplash.com'],
+    unoptimized: process.env.NODE_ENV === 'development',
   },
   webpack: (config, { dev, isServer }) => {
     // Optimize Three.js
@@ -51,7 +59,22 @@ const nextConfig = {
             },
           },
         },
+        runtimeChunk: 'single',
+        moduleIds: 'deterministic',
       }
+    }
+
+    // Add compression
+    if (!dev && !isServer) {
+      config.plugins.push(
+        new CompressionPlugin({
+          filename: '[path][base].gz',
+          algorithm: 'gzip',
+          test: /\.(js|css|html|svg)$/,
+          threshold: 10240,
+          minRatio: 0.8,
+        })
+      )
     }
 
     return config

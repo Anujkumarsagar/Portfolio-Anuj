@@ -1,11 +1,17 @@
 "use client"
 
-import { useEffect, useRef } from "react"
-import { motion } from "framer-motion"
+import { useEffect, useRef, useMemo, useState, Suspense } from "react"
+import { motion, AnimatePresence } from "framer-motion"
 import gsap from "gsap"
 import { ScrollTrigger } from "gsap/ScrollTrigger"
-import CanvasSkillsAnimation from "@/components/canvas/skills-animation"
+import dynamic from 'next/dynamic'
 import { useSoundContext } from "@/context/sound-context"
+
+// Dynamically import the 3D animation component
+const DynamicCanvasSkillsAnimation = dynamic(() => import('@/components/canvas/skills-animation'), {
+  ssr: false,
+  loading: () => null,
+})
 
 gsap.registerPlugin(ScrollTrigger)
 
@@ -26,10 +32,56 @@ export default function SkillsSection() {
   const sectionRef = useRef<HTMLElement>(null)
   const progressRefs = useRef<(HTMLDivElement | null)[]>([])
   const { playSound } = useSoundContext()
+  const [isVisible, setIsVisible] = useState(false)
+
+  // Memoize the skills grid to prevent unnecessary re-renders
+  const skillsGrid = useMemo(() => (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto backdrop-blur-sm bg-black/30 p-8 rounded-lg border border-white/10">
+      {skillsData.map((skill, index) => (
+        <motion.div
+          key={index}
+          className="group"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: index * 0.1 }}
+        >
+          <div className="flex justify-between mb-1">
+            <span className="text-white font-medium">{skill.name}</span>
+            <span className="text-gray-300">{skill.level}%</span>
+          </div>
+          <div className="h-3 bg-gray-700/50 rounded-full overflow-hidden">
+            <div
+              ref={function(el: HTMLDivElement | null) {
+                progressRefs.current[index] = el
+              }}
+              className="h-full rounded-full transition-all duration-300 group-hover:brightness-125"
+              style={{
+                width: "0%",
+                background: `linear-gradient(90deg, ${skill.color} 0%, ${skill.color}bb 100%)`,
+                boxShadow: `0 0 10px ${skill.color}66`,
+              }}
+            />
+          </div>
+        </motion.div>
+      ))}
+    </div>
+  ), [])
 
   // Setup animations
   useEffect(() => {
     if (!sectionRef.current) return
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true)
+          observer.disconnect()
+        }
+      },
+      { threshold: 0.1 }
+    )
+
+    observer.observe(sectionRef.current)
 
     // Create timeline for skill bars
     const tl = gsap.timeline({
@@ -65,19 +117,8 @@ export default function SkillsSection() {
       )
     })
 
-    // Scroll animation for 3D skill reactor
-    ScrollTrigger.create({
-      trigger: sectionRef.current,
-      start: "top bottom",
-      end: "bottom top",
-      scrub: true,
-      onUpdate: (self) => {
-        // Update the 3D animation in CanvasSkillsAnimation
-        // This is handled via the scroll context in the 3D component
-      },
-    })
-
     return () => {
+      observer.disconnect()
       ScrollTrigger.getAll().forEach((t) => t.kill())
     }
   }, [playSound])
@@ -85,7 +126,9 @@ export default function SkillsSection() {
   return (
     <section ref={sectionRef} id="skills" className="relative min-h-screen py-20 flex items-center overflow-hidden">
       <div className="absolute inset-0 z-0">
-        <CanvasSkillsAnimation skills={skillsData} />
+        <Suspense fallback={null}>
+          <DynamicCanvasSkillsAnimation skills={skillsData} />
+        </Suspense>
       </div>
 
       <div className="container mx-auto px-4 md:px-6 z-10 relative">
@@ -101,29 +144,9 @@ export default function SkillsSection() {
           </span>
         </motion.h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto backdrop-blur-sm bg-black/30 p-8 rounded-lg border border-white/10">
-          {skillsData.map((skill, index) => (
-            <div key={index} className="group">
-              <div className="flex justify-between mb-1">
-                <span className="text-white font-medium">{skill.name}</span>
-                <span className="text-gray-300">{skill.level}%</span>
-              </div>
-              <div className="h-3 bg-gray-700/50 rounded-full overflow-hidden">
-                <div
-                  ref={function(el: HTMLDivElement | null) {
-                    progressRefs.current[index] = el
-                  }}
-                  className="h-full rounded-full transition-all duration-300 group-hover:brightness-125"
-                  style={{
-                    width: "0%",
-                    background: `linear-gradient(90deg, ${skill.color} 0%, ${skill.color}bb 100%)`,
-                    boxShadow: `0 0 10px ${skill.color}66`,
-                  }}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
+        <AnimatePresence>
+          {isVisible && skillsGrid}
+        </AnimatePresence>
       </div>
     </section>
   )
